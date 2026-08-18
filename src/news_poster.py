@@ -95,6 +95,10 @@ def fetch_new_entries(already_posted: set) -> list:
             title = entry.get("title")
             if not link or not title or link in already_posted:
                 continue
+            title = title.strip()
+            if not is_game_related(title):
+                logger.info("ゲーム以外の話題と判断してスキップ: %s", title)
+                continue
             published = entry.get("published_parsed") or entry.get("updated_parsed")
             candidates.append(
                 {
