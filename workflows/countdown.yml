@@ -1,0 +1,32 @@
+name: 冬コミ(C109) カウントダウン自動投稿
+
+on:
+  schedule:
+    # UTC基準。18:00 JSTに実行
+    - cron: '0 9 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  post-countdown:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依存パッケージのインストール
+        run: pip install -r requirements.txt
+
+      - name: カウントダウン投稿の実行
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          DRY_RUN: ${{ secrets.DRY_RUN }}
+          COUNTDOWN_START_DATE: ${{ secrets.COUNTDOWN_START_DATE }}
+          EVENT_DATE: ${{ secrets.EVENT_DATE }}
+          CIRCLE_SPACE: ${{ secrets.CIRCLE_SPACE }}
+        run: python src/countdown.py
