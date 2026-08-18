@@ -1,0 +1,37 @@
+name: ゲームニュース自動投稿
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+    - cron: '0 9 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  post-news:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: 依存パッケージのインストール
+        run: pip install -r requirements.txt
+      - name: ニュース自動投稿の実行
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          DRY_RUN: ${{ secrets.DRY_RUN }}
+          MAX_NEWS_POSTS_PER_RUN: ${{ secrets.MAX_NEWS_POSTS_PER_RUN }}
+        run: python src/news_poster.py
+      - name: 投稿済みログの更新をコミット
+        run: |
+          git config user.name "rakunou-x-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/posted_log.json
+          git diff --cached --quiet || git commit -m "chore: update posted news log [skip ci]"
+          git push
