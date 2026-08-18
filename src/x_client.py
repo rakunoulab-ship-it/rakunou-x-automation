@@ -21,7 +21,11 @@ logger = logging.getLogger("rakunou-x-automation")
 
 
 def _is_dry_run() -> bool:
-    return os.getenv("DRY_RUN", "true").strip().lower() in ("1", "true", "yes")
+    # GitHub ActionsのSecretsは、登録し忘れると「未設定」ではなく「空文字」として
+    # 渡ってくる。os.getenv(..., "true") だと空文字はデフォルト値に置き換わらず、
+    # 意図せずDRY_RUNが解除されてしまうため、空文字も「未設定」として扱う。
+    value = os.getenv("DRY_RUN") or "true"
+    return value.strip().lower() in ("1", "true", "yes")
 
 
 def get_client():
