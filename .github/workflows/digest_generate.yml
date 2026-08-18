@@ -1,0 +1,36 @@
+name: ゲームニュース ダイジェスト生成（19時）
+
+on:
+  schedule:
+    # UTC基準。19:00 JSTに実行
+    - cron: '0 10 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  generate-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依存パッケージのインストール
+        run: pip install -r requirements.txt
+
+      - name: ダイジェストページの生成
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python src/digest_generator.py
+
+      - name: 生成したページをコミット
+        run: |
+          git config user.name "rakunou-x-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/digest/
+          git diff --cached --quiet || git commit -m "chore: add daily game news digest [skip ci]"
+          git push
