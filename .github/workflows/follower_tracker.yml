@@ -1,0 +1,39 @@
+name: フォロワー数記録（毎日9時）
+
+on:
+  schedule:
+    # UTC基準。09:00 JST = 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  track-followers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依存パッケージのインストール
+        run: pip install -r requirements.txt
+
+      - name: フォロワー数の取得・記録
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+        run: python src/follower_tracker.py
+
+      - name: 記録したCSVをコミット
+        run: |
+          git config user.name "rakunou-x-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/follower_history.csv
+          git diff --cached --quiet || git commit -m "chore: track follower count [skip ci]"
+          git push
