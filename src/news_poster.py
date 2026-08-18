@@ -33,7 +33,31 @@ RSS_FEEDS = [
     ("Game*Spark", "https://www.gamespark.jp/rss/index.rdf"),
     ("インサイド", "https://www.inside-games.jp/rss20/index.rdf"),
 ]
+# タイトルにこれらの単語が含まれる記事は、ゲーム本体のニュースではないと判断してスキップする。
+# インサイドなどのRSSは「フィギュア・グッズ」「アニメ」等、ゲーム以外の話題も
+# 同じフィードに混ざって配信されるため、キーワードで簡易的に除外する。
+# 実際に紛れ込んだ記事があれば、ここにキーワードを追加していけば精度が上がる。
+NG_KEYWORDS = [
+    "フィギュア",
+    "グッズ",
+    "くじ",
+    "ステッカー",
+    "シール",
+    "ぬいぐるみ",
+    "アクリルスタンド",
+    "コラボカフェ",
+    "痛車",
+    "プラモデル",
+    "声優",
+    "舞台化",
+    "実写化",
+    "アニメ化",
+]
 
+
+def is_game_related(title: str) -> bool:
+    """タイトルにNGキーワードが含まれていないかを確認する。"""
+    return not any(ng in title for ng in NG_KEYWORDS)
 MAX_POSTED_LOG_SIZE = 1000  # posted_log.jsonが際限なく大きくならないようにする上限
 
 
