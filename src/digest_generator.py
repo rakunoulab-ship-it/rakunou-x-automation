@@ -55,6 +55,12 @@ SYSTEM_PROMPT = """\
 ・記事のOGP画像（og:imageメタタグ）のURLも、Web取得ツールで確認して含めること。
   取得できなかった場合は image_url を null にする
 
+【重要・出力の書き方】
+・summary や comment の文章には、<cite>のような引用タグや出典マークアップを
+  一切含めないこと。自分の言葉で書いた、タグなしの通常の文章だけにする
+・各記事の要約は簡潔にすること（summaryは2〜3文、commentは1文程度）。
+  長々とした引用の貼り付けはしない
+
 【出力形式】
 必ず、以下の形式のJSON配列を ```json ... ``` のコードブロックで出力してください。
 これ以外の説明文は最後の回答に含めないこと（調査の途中経過の発言は問題ない）。
@@ -79,7 +85,7 @@ def call_claude(today_str: str) -> str:
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=8000,
+        max_tokens=12000,
         system=SYSTEM_PROMPT,
         tools=[
             {
@@ -92,7 +98,10 @@ def call_claude(today_str: str) -> str:
                 "name": "web_fetch",
                 "max_uses": 12,
                 "max_content_tokens": 6000,
-                "citations": {"enabled": True},
+                # 引用タグ(<cite>...)を出力に含めると、それだけで出力が
+                # 大きく膨らみ、max_tokensに達して出力が途中で切れる原因になる。
+                # このダイジェストでは引用表示を使わないため、オフにしておく。
+                "citations": {"enabled": False},
             },
         ],
         messages=[
@@ -111,14 +120,25 @@ def call_claude(today_str: str) -> str:
     return text_blocks[-1]
 
 
+def strip_cite_tags(text: str) -> str:
+    """
+    <cite index="...">本文</cite> のような引用タグが万が一混ざっていた場合に、
+    タグだけを取り除いて中の文章を残す（保険的な処理）。
+    """
+    return re.sub(r"</?cite[^>]*>", "", text)
+
+
 def extract_json(text: str) -> list:
+    text = strip_cite_tags(text)
+
     match = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
     if not match:
         # コードブロックなしでJSON配列らしきものがそのまま返ってきた場合の保険
         match = re.search(r"(\[.*\])", text, re.DOTALL)
         if not match:
             raise RuntimeError(
-                "応答からJSONを抽出できませんでした。応答内容:\n" + text[:2000]
+                "応答からJSONを抽出できませんでした（出力が途中で切れている可能性があります）。"
+                "応答内容:\n" + text[:2000]
             )
     return json.loads(match.group(1))
 
