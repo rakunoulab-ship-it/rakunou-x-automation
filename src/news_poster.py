@@ -113,7 +113,8 @@ def build_tweet_text(entry: dict) -> str:
 
 
 def main():
-    max_posts = int(os.getenv("MAX_NEWS_POSTS_PER_RUN", "2"))
+    # Secret未登録だと空文字が渡ってくることがあるため、空文字もデフォルト扱いにする
+    max_posts = int(os.getenv("MAX_NEWS_POSTS_PER_RUN") or "2")
     already_posted = load_posted_links()
 
     entries = fetch_new_entries(already_posted)
