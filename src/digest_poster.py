@@ -48,7 +48,7 @@ def main():
         )
         return
 
-    text = f"🎮 {date_label}のゲームニュースまとめはこちら\n{url}\n#ゲームニュース #楽脳研究所"
+    text = f"🎮 {date_label}のゲームニュースまとめはこちら\n{url}\n##ゲーム情報　#ゲーム　#楽脳研究所"
     post_tweet(text)
 
 
