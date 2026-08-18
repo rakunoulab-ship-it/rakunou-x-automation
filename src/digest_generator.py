@@ -85,7 +85,7 @@ def call_claude(today_str: str) -> str:
 
     response = client.messages.create(
         model=MODEL,
-        max_tokens=12000,
+        max_tokens=16000,
         system=SYSTEM_PROMPT,
         tools=[
             {
@@ -96,8 +96,12 @@ def call_claude(today_str: str) -> str:
             {
                 "type": "web_fetch_20250910",
                 "name": "web_fetch",
-                "max_uses": 12,
-                "max_content_tokens": 6000,
+                "max_uses": 10,
+                # タイトルとog:image（どちらもページ先頭のhead部分にある）が
+                # 取れれば十分なため、取得する文章量は少なめに絞る。
+                # ここが大きすぎると、記事を何件も取得するうちに出力の上限
+                # (max_tokens)を使い切ってしまい、肝心の要約が書けなくなる。
+                "max_content_tokens": 2000,
                 # 引用タグ(<cite>...)を出力に含めると、それだけで出力が
                 # 大きく膨らみ、max_tokensに達して出力が途中で切れる原因になる。
                 # このダイジェストでは引用表示を使わないため、オフにしておく。
@@ -116,7 +120,16 @@ def call_claude(today_str: str) -> str:
     # （途中の検索過程のtextブロックではなく、最終的な結論部分を使うため）
     text_blocks = [block.text for block in response.content if block.type == "text"]
     if not text_blocks:
-        raise RuntimeError("Claudeからテキスト応答が得られませんでした。")
+        block_types = [block.type for block in response.content]
+        print(
+            f"[診断情報] stop_reason={response.stop_reason} "
+            f"content_block_types={block_types} "
+            f"usage={response.usage}"
+        )
+        raise RuntimeError(
+            "Claudeからテキスト応答が得られませんでした"
+            "（出力の上限に達した可能性があります。上の診断情報を確認してください）。"
+        )
     return text_blocks[-1]
 
 
