@@ -1,9 +1,9 @@
-name: ゲームニュース ダイジェスト投稿（20時）
+name: ゲームニュース ダイジェスト投稿（21時）
 
 on:
   schedule:
-    # UTC基準。20:00 JSTに実行
-    - cron: '0 11 * * *'
+    # UTC基準。21:00 JSTに実行
+    - cron: '0 12 * * *'
   workflow_dispatch: {}
 
 jobs:
