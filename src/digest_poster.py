@@ -24,6 +24,11 @@ PAGES_BASE_URL = os.getenv(
     "PAGES_BASE_URL", "https://rakunoulab-ship-it.github.io/rakunou-x-automation"
 )
 
+# 投稿に添える固定のブランド画像（assets/make_brand_image.py で生成したもの）
+BRAND_IMAGE_PATH = str(
+    Path(__file__).resolve().parent.parent / "assets" / "brand_image.png"
+)
+
 
 def page_exists(url: str) -> bool:
     try:
@@ -49,7 +54,7 @@ def main():
         return
 
     text = f"🎮 {date_label}のゲームニュースまとめはこちら\n{url}\n#ゲーム情報 #ゲーム #楽脳研究所"
-    post_tweet(text)
+    post_tweet(text, image_path=BRAND_IMAGE_PATH)
 
 
 if __name__ == "__main__":
