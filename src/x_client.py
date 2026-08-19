@@ -28,15 +28,7 @@ def _is_dry_run() -> bool:
     return value.strip().lower() in ("1", "true", "yes")
 
 
-def get_client():
-    """
-    tweepy.Client を作成して返します。
-    DRY_RUN=true のときは、実際の認証は行わず None を返します
-    （呼び出し側で dry run 用の分岐をしているため、通常はこの関数を
-    呼ばなくても post_tweet() だけで動作確認ができます）。
-    """
-    import tweepy
-
+def _get_credentials() -> dict:
     api_key = os.getenv("X_API_KEY")
     api_secret = os.getenv("X_API_SECRET")
     access_token = os.getenv("X_ACCESS_TOKEN")
@@ -60,12 +52,48 @@ def get_client():
         )
         sys.exit(1)
 
+    return {
+        "api_key": api_key,
+        "api_secret": api_secret,
+        "access_token": access_token,
+        "access_token_secret": access_token_secret,
+    }
+
+
+def get_client():
+    """
+    tweepy.Client（X API v2用）を作成して返します。
+    DRY_RUN=true のときは、実際の認証は行わず None を返します
+    （呼び出し側で dry run 用の分岐をしているため、通常はこの関数を
+    呼ばなくても post_tweet() だけで動作確認ができます）。
+    """
+    import tweepy
+
+    creds = _get_credentials()
     return tweepy.Client(
-        consumer_key=api_key,
-        consumer_secret=api_secret,
-        access_token=access_token,
-        access_token_secret=access_token_secret,
+        consumer_key=creds["api_key"],
+        consumer_secret=creds["api_secret"],
+        access_token=creds["access_token"],
+        access_token_secret=creds["access_token_secret"],
     )
+
+
+def get_media_api():
+    """
+    tweepy.API（X API v1.1用）を作成して返します。
+    画像のアップロードは現時点でv1.1エンドポイントしか対応していないため、
+    v2用のClientとは別に用意しています。
+    """
+    import tweepy
+
+    creds = _get_credentials()
+    auth = tweepy.OAuth1UserHandler(
+        creds["api_key"],
+        creds["api_secret"],
+        creds["access_token"],
+        creds["access_token_secret"],
+    )
+    return tweepy.API(auth)
 
 
 def weighted_length(text: str) -> int:
@@ -81,10 +109,18 @@ def weighted_length(text: str) -> int:
     return sum(1 if ord(ch) < 128 else 2 for ch in text)
 
 
-def post_tweet(text: str) -> None:
+def post_tweet(text: str, image_path: str | None = None) -> bool:
     """
     1件のツイートを投稿します。
     DRY_RUN=true のときは、実際には投稿せずログに内容を表示するだけです。
+
+    image_path を指定すると、その画像を添付して投稿します
+    （ファイルが存在しない場合は、画像なしでテキストのみ投稿します）。
+
+    戻り値は「実際にXへ投稿できたかどうか」です。
+    DRY_RUNのときは常にFalseを返します。呼び出し側は、この戻り値を見て
+    「投稿済み記事リスト」に記録するかどうかを判断してください
+    （DRY_RUNで確認しただけの記事を、誤って投稿済み扱いにしないため）。
     """
     length = weighted_length(text)
     if length > 280:
@@ -93,14 +129,29 @@ def post_tweet(text: str) -> None:
             length,
         )
 
+    if image_path and not os.path.exists(image_path):
+        logger.warning("指定された画像が見つかりません（%s）。画像なしで投稿します。", image_path)
+        image_path = None
+
     if _is_dry_run():
-        logger.info("[DRY RUN] 実際には投稿していません。内容だけ表示します:\n---\n%s\n---", text)
-        return
+        logger.info(
+            "[DRY RUN] 実際には投稿していません。内容だけ表示します:\n---\n%s\n---\n添付画像: %s",
+            text,
+            image_path or "なし",
+        )
+        return False
 
     client = get_client()
     try:
-        response = client.create_tweet(text=text)
+        media_ids = None
+        if image_path:
+            media_api = get_media_api()
+            media = media_api.media_upload(filename=image_path)
+            media_ids = [media.media_id_string]
+
+        response = client.create_tweet(text=text, media_ids=media_ids)
         logger.info("投稿しました: tweet_id=%s", response.data.get("id"))
+        return True
     except Exception as exc:  # noqa: BLE001
         logger.error("投稿に失敗しました: %s", exc)
         raise
