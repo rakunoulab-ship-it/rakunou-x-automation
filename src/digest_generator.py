@@ -60,6 +60,11 @@ SYSTEM_PROMPT = """\
   一切含めないこと。自分の言葉で書いた、タグなしの通常の文章だけにする
 ・各記事の要約は簡潔にすること（summaryは2〜3文、commentは1文程度）。
   長々とした引用の貼り付けはしない
+・調査の途中経過を説明する文章は、書くとしても最小限にすること。
+  ページを取得するたびに長い感想や中間まとめを書かない。
+  出力の上限に達して最後のJSONが書けなくなることを避けるため、
+  余計な前置きや途中経過の記述は極力省略し、調査が終わったら
+  すぐに最終的なJSON出力に進むこと
 
 【出力形式】
 必ず、以下の形式のJSON配列を ```json ... ``` のコードブロックで出力してください。
@@ -80,28 +85,37 @@ SYSTEM_PROMPT = """\
 """
 
 
-def call_claude(today_str: str) -> str:
-    client = anthropic.Anthropic()  # ANTHROPIC_API_KEY環境変数を自動で読む
+# 1回目・2回目（リトライ時）で使う調査ボリュームの設定。
+# 1回目で出力上限に達して失敗した場合、2回目はより少ない検索・取得回数で
+# 再挑戦する（記事の網羅性よりも、確実に完走することを優先するため）。
+ATTEMPT_BUDGETS = [
+    {"search_max_uses": 6, "fetch_max_uses": 8, "fetch_max_content_tokens": 1500},
+    {"search_max_uses": 3, "fetch_max_uses": 4, "fetch_max_content_tokens": 1000},
+]
 
+
+def _call_claude_once(client: "anthropic.Anthropic", today_str: str, budget: dict):
     response = client.messages.create(
         model=MODEL,
-        max_tokens=16000,
+        # 以前16000で発生していた「出力の上限に達して途中で切れる」エラーが
+        # 再発したため、さらに余裕を持たせている。
+        max_tokens=32000,
         system=SYSTEM_PROMPT,
         tools=[
             {
                 "type": "web_search_20250305",
                 "name": "web_search",
-                "max_uses": 10,
+                "max_uses": budget["search_max_uses"],
             },
             {
                 "type": "web_fetch_20250910",
                 "name": "web_fetch",
-                "max_uses": 10,
+                "max_uses": budget["fetch_max_uses"],
                 # タイトルとog:image（どちらもページ先頭のhead部分にある）が
                 # 取れれば十分なため、取得する文章量は少なめに絞る。
                 # ここが大きすぎると、記事を何件も取得するうちに出力の上限
                 # (max_tokens)を使い切ってしまい、肝心の要約が書けなくなる。
-                "max_content_tokens": 2000,
+                "max_content_tokens": budget["fetch_max_content_tokens"],
                 # 引用タグ(<cite>...)を出力に含めると、それだけで出力が
                 # 大きく膨らみ、max_tokensに達して出力が途中で切れる原因になる。
                 # このダイジェストでは引用表示を使わないため、オフにしておく。
@@ -131,6 +145,27 @@ def call_claude(today_str: str) -> str:
             "（出力の上限に達した可能性があります。上の診断情報を確認してください）。"
         )
     return text_blocks[-1]
+
+
+def call_claude(today_str: str) -> str:
+    client = anthropic.Anthropic()  # ANTHROPIC_API_KEY環境変数を自動で読む
+
+    last_error: Exception | None = None
+    for attempt_index, budget in enumerate(ATTEMPT_BUDGETS, start=1):
+        try:
+            if attempt_index > 1:
+                print(
+                    f"[リトライ] {attempt_index}回目の挑戦を、より少ない"
+                    f"検索・取得回数（search={budget['search_max_uses']}, "
+                    f"fetch={budget['fetch_max_uses']}）で実行します。"
+                )
+            return _call_claude_once(client, today_str, budget)
+        except RuntimeError as exc:
+            last_error = exc
+            print(f"[警告] {attempt_index}回目の挑戦が失敗しました: {exc}")
+
+    # すべての挑戦が失敗した場合は、最後のエラーをそのまま投げる
+    raise last_error
 
 
 def strip_cite_tags(text: str) -> str:
@@ -274,8 +309,18 @@ def main():
     html = render_html(items, now_jst)
 
     DOCS_DIGEST_DIR.mkdir(parents=True, exist_ok=True)
-    output_path = DOCS_DIGEST_DIR / f"{now_jst.strftime('%Y-%m-%d')}.html"
+    date_str = now_jst.strftime("%Y-%m-%d")
+
+    output_path = DOCS_DIGEST_DIR / f"{date_str}.html"
     output_path.write_text(html, encoding="utf-8")
+
+    # 記事データ(JSON)も別途保存しておく。
+    # note向けの週刊まとめ記事(weekly_note_generator.py)が、この日次データを
+    # 再利用して作られるため(Web検索をやり直さずに済み、コストを抑えられる)。
+    json_path = DOCS_DIGEST_DIR / f"{date_str}.json"
+    json_path.write_text(
+        json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     print(f"ダイジェストページを生成しました: {output_path}（{len(items)}件）")
 
