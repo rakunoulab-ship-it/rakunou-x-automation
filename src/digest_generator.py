@@ -95,7 +95,7 @@ ATTEMPT_BUDGETS = [
 
 
 def _call_claude_once(client: "anthropic.Anthropic", today_str: str, budget: dict):
-    response = client.messages.create(
+    request_kwargs = dict(
         model=MODEL,
         # 以前16000で発生していた「出力の上限に達して途中で切れる」エラーが
         # 再発したため、さらに余裕を持たせている。
@@ -129,6 +129,15 @@ def _call_claude_once(client: "anthropic.Anthropic", today_str: str, budget: dic
             }
         ],
     )
+
+    # max_tokensが大きい（32000）ため、Anthropic SDKが「10分を超える可能性が
+    # あり、非ストリーミングでは扱えない」と判断してエラーになることがある。
+    # そのため、ここではclient.messages.create()ではなくstream()を使い、
+    # 完了まで待ってから最終的なMessageオブジェクトを取り出す。
+    with client.messages.stream(**request_kwargs) as stream:
+        for _ in stream:
+            pass  # イベントはここでは使わず、完了を待つだけ
+        response = stream.get_final_message()
 
     # レスポンス中の最後のtextブロックを取り出す
     # （途中の検索過程のtextブロックではなく、最終的な結論部分を使うため）
