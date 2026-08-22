@@ -9,6 +9,9 @@ on:
     - cron: '12 12 * * *'
   workflow_dispatch: {}
 
+permissions:
+  contents: write
+
 jobs:
   post-digest:
     runs-on: ubuntu-latest
@@ -30,3 +33,11 @@ jobs:
           X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
           DRY_RUN: ${{ vars.DRY_RUN }}
         run: python src/digest_poster.py
+
+      - name: 投稿記録をコミット
+        run: |
+          git config user.name "rakunou-x-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/posted_digest_log.json
+          git diff --cached --quiet || git commit -m "chore: record posted digest date [skip ci]"
+          git push
