@@ -5,6 +5,10 @@ data/retro_game_releases.csv に登録されたタイトルの中から、
 今日の月日に一致するものを探して投稿します。
 一致するデータがない日は、何も投稿せず終了します（エラーではありません）。
 
+同じ日に複数の該当データがある場合は、投稿しすぎを避けるため、
+その中から1件だけをランダムに選んで投稿します
+（年によって選ばれるハードが変わるようにするための仕様です）。
+
 このCSVは同梱のサンプルデータです。ファミ通の「今日は何の日？」シリーズや
 Wikipediaなどの信頼できる情報源で日付を確認しながら、
 少しずつ追加していくことをおすすめします。
@@ -12,6 +16,7 @@ Wikipediaなどの信頼できる情報源で日付を確認しながら、
 
 import csv
 import datetime
+import random
 import sys
 from pathlib import Path
 
@@ -55,8 +60,10 @@ def main():
         logger.info("本日（%s）に該当するレトロゲームの記念日データはありません。", today.isoformat())
         return
 
-    # 複数該当する場合も、投稿しすぎを避けるため1件だけ投稿する
-    entry = entries[0]
+    # 複数該当する場合は、投稿しすぎを避けるため1件だけランダムに選んで投稿する
+    if len(entries) > 1:
+        logger.info("本日は該当データが%d件あるため、1件をランダムに選んで投稿します。", len(entries))
+    entry = random.choice(entries)
     text = build_tweet_text(entry, today)
     logger.info("記念日投稿: %s", entry["title"])
     post_tweet(text)
