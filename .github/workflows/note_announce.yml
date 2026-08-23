@@ -1,0 +1,43 @@
+name: note記事 公開告知投稿（手動実行）
+
+# note側には「記事を公開したら自動でXに投稿される」機能がないため、
+# noteで記事を公開したあと、このワークフローを手動実行してXへ告知する。
+# Actionsタブから「Run workflow」を選び、公開したnote記事のURLを入力する。
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: '公開したnote記事のURL（必須）'
+        required: true
+      comment:
+        description: '告知文の書き出し（省略可。空欄なら記事タイトルを自動取得して定型文にする）'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  announce-note:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 依存パッケージのインストール
+        run: pip install -r requirements.txt
+
+      - name: note記事のXへの告知投稿
+        env:
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_TOKEN_SECRET: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+          DRY_RUN: ${{ vars.DRY_RUN }}
+          NOTE_URL: ${{ inputs.url }}
+          NOTE_COMMENT: ${{ inputs.comment }}
+        run: python src/note_announce.py
