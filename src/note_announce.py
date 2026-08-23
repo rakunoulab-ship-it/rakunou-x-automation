@@ -20,10 +20,8 @@ import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from x_client import post_tweet, logger  # noqa: E402
 
-# 投稿に添える固定のブランド画像（assets/make_brand_image.py で生成したもの）
-BRAND_IMAGE_PATH = str(
-    Path(__file__).resolve().parent.parent / "assets" / "brand_image.png"
-)
+# note記事のURLを貼るとXがリンクカード（記事のOGP画像つき）を自動生成するため、
+# ここではゲームニュースまとめ用のブランド画像は添付しない。
 
 
 def fetch_og_title(url: str):
@@ -74,7 +72,7 @@ def main():
 
     text = build_tweet_text(url, comment)
     logger.info("note記事の告知投稿を行います: %s", url)
-    post_tweet(text, image_path=BRAND_IMAGE_PATH)
+    post_tweet(text)
 
 
 if __name__ == "__main__":
